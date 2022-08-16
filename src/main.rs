@@ -60,7 +60,7 @@ fn generate_unique_directory(working_dir: &str) -> String {
 
 fn create_dedicated_server_environment(working_dir: &str) {
     fs::create_dir(working_dir).unwrap();
-    unix::fs::symlink("../../resources", Path::new(working_dir).join("resources")).unwrap();
+    unix::fs::symlink("../resources", Path::new(working_dir).join("resources")).unwrap();
 }
 
 fn process_one_line_request(http_request: Vec<String>, working_dir: &str) -> Option<String> {
