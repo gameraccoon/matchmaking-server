@@ -26,7 +26,6 @@ fn main() {
         Ok(config) => config,
         Err(error) => {
             panic!("Error reading config: {}.\nUse --generate-default-config to generate default config", error);
-            return;
         }
     };
 
@@ -36,6 +35,8 @@ fn main() {
     });
 
     let listener = TcpListener::bind(format!("127.0.0.1:{}", config.matchmaker_port)).unwrap();
+
+    println!("Matchmaker service started on port {}", config.matchmaker_port);
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
