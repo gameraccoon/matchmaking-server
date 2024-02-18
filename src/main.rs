@@ -37,7 +37,7 @@ fn main() {
         );
     });
 
-    let listener = TcpListener::bind(format!("127.0.0.1:{}", config.matchmaker_port)).unwrap();
+    let listener = TcpListener::bind(format!("0.0.0.0:{}", config.matchmaker_port)).unwrap();
 
     println!(
         "Matchmaker service started on port {}",
