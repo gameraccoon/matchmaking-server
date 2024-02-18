@@ -7,29 +7,51 @@ use std::{
     process::Command,
 };
 
+mod config_updaters;
+mod json_file_updater;
+mod config;
+
 use rand::{distributions::Alphanumeric, Rng};
 
 use chrono::prelude::Utc;
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    let working_dir = if args.len() == 2 { &args[1] } else { "." };
-    let listener = TcpListener::bind("127.0.0.1:14736").unwrap();
+    if env::args().len() == 2 && env::args().nth(1).unwrap() == "--generate-default-config" {
+        config::generate_default_config();
+        return;
+    }
+
+    let config = config::read_config();
+    let config = match config {
+        Ok(config) => config,
+        Err(error) => {
+            panic!("Error reading config: {}.\nUse --generate-default-config to generate default config", error);
+            return;
+        }
+    };
+
+    // create the directory for the working directories
+    fs::create_dir_all(&config.working_directiries_path).unwrap_or_else(|error| {
+        println!("Problem creating directory '{}': {:?}", config.working_directiries_path, error);
+    });
+
+    let listener = TcpListener::bind(format!("127.0.0.1:{}", config.matchmaker_port)).unwrap();
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
 
-        handle_connection(stream, working_dir);
+        handle_connection(stream, &config.working_directiries_path, &config.dedicated_server_dir);
     }
 }
 
 fn start_dedicated_server(
     port: u16,
-    working_dir: &str,
+    dedicated_server_working_dir: &str,
+    dedicated_server_dir: &str,
 ) -> Result<std::process::Child, std::io::Error> {
     return Command::new("./run_detached_process.sh")
-        .arg(working_dir)
-        .arg("../DedicatedServer")
+        .arg(dedicated_server_working_dir)
+        .arg(format!("{}/DedicatedServer", dedicated_server_dir))
         .arg(format!("--open-port {}", port))
         .spawn();
 }
@@ -58,19 +80,23 @@ fn generate_unique_directory(working_dir: &str) -> String {
         .to_string();
 }
 
-fn create_dedicated_server_environment(working_dir: &str) {
-    fs::create_dir(working_dir).unwrap();
-    unix::fs::symlink("../resources", Path::new(working_dir).join("resources")).unwrap();
+fn create_dedicated_server_environment(
+    dedicated_server_working_dir: &str,
+    dedicated_server_dir: &str) {
+    fs::create_dir_all(dedicated_server_working_dir).unwrap_or_else(|error| {
+        println!("Problem creating directory '{}': {:?}", dedicated_server_working_dir, error);
+    });
+    unix::fs::symlink(format!("{}/resources", dedicated_server_dir), Path::new(dedicated_server_working_dir).join("resources")).unwrap();
 }
 
-fn process_one_line_request(http_request: Vec<String>, working_dir: &str) -> Option<String> {
-    if http_request[0] == "start-server" {
+fn process_one_line_request(http_request: Vec<String>, working_directories_path: &str, dedicated_server_dir: &str) -> Option<String> {
+    if http_request[0] == "connect" {
         let port: Option<u16> = get_available_port();
         match port {
             Some(val) => {
-                let server_dir = generate_unique_directory(working_dir);
-                create_dedicated_server_environment(&server_dir);
-                match start_dedicated_server(val, &server_dir) {
+                let new_server_working_dir = generate_unique_directory(working_directories_path);
+                create_dedicated_server_environment(&new_server_working_dir, dedicated_server_dir);
+                match start_dedicated_server(val, &new_server_working_dir, dedicated_server_dir) {
                     Ok(_) => return Some(val.to_string()),
                     Err(error) => return Some(format!("Problem opening the file: {:?}", error)),
                 }
@@ -83,7 +109,7 @@ fn process_one_line_request(http_request: Vec<String>, working_dir: &str) -> Opt
     }
 }
 
-fn handle_connection(mut stream: TcpStream, working_dir: &str) {
+fn handle_connection(mut stream: TcpStream, working_directories_path: &str, dedicated_server_dir: &str) {
     let buf_reader = BufReader::new(&mut stream);
     let http_request: Vec<_> = buf_reader
         .lines()
@@ -92,7 +118,7 @@ fn handle_connection(mut stream: TcpStream, working_dir: &str) {
         .collect();
 
     if http_request.len() == 1 {
-        let response = process_one_line_request(http_request, working_dir);
+        let response = process_one_line_request(http_request, working_directories_path, dedicated_server_dir);
 
         match response {
             Some(val) => stream.write_all(val.as_bytes()).unwrap(),
@@ -104,10 +130,10 @@ fn handle_connection(mut stream: TcpStream, working_dir: &str) {
 }
 
 fn get_available_port() -> Option<u16> {
-    (8000..9000).find(|port| port_is_available(*port))
+    (8000..9000).find(|port| is_port_available(*port))
 }
 
-fn port_is_available(port: u16) -> bool {
+fn is_port_available(port: u16) -> bool {
     match TcpListener::bind(("127.0.0.1", port)) {
         Ok(_) => true,
         Err(_) => false,

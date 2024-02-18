@@ -1,0 +1,6 @@
+{
+  "config_format_version": "0.0.1",
+  "working_directiries_path": "instances",
+  "dedicated_server_dir": "../../../tank-game/bin",
+  "matchmaker_port": 14736
+}
