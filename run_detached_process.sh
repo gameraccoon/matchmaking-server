@@ -4,4 +4,3 @@ pushd $1
 	$2 ${@:3:99} >/dev/null 2>/dev/null &
 popd
 
-echo "Starting server in $1 $2 ${@:3:99}"

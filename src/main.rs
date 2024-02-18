@@ -1,5 +1,5 @@
 use std::{
-    env, fs,
+    fs,
     io::{prelude::*, BufReader},
     net::{TcpListener, TcpStream},
     os::unix,
@@ -7,6 +7,7 @@ use std::{
     process::Command,
 };
 
+mod arguments_parser;
 mod config;
 mod config_updaters;
 mod json_file_updater;
@@ -15,17 +16,67 @@ use rand::{distributions::Alphanumeric, Rng};
 
 use chrono::prelude::Utc;
 
+struct ArgumentDescription {
+    name: &'static str,
+    syntax: &'static str,
+    description: &'static str,
+}
+
+const ARGUMENTS: [ArgumentDescription; 3] = [
+    ArgumentDescription {
+        name: "help",
+        syntax: "help",
+        description: "Print this help message",
+    },
+    ArgumentDescription {
+        name: "config",
+        syntax: "config <path>",
+        description: "Set path to the config file",
+    },
+    ArgumentDescription {
+        name: "generate-default-config",
+        syntax: "generate-default-config",
+        description: "Generate default config file",
+    },
+];
+
 fn main() {
-    if env::args().len() == 2 && env::args().nth(1).unwrap() == "--generate-default-config" {
-        config::generate_default_config();
+    let arguments = arguments_parser::ArgumentsParser::new(std::env::args().collect());
+
+    let mut has_unknown_arguments = false;
+    arguments.for_each_argument(|argument| {
+        if !ARGUMENTS.iter().any(|arg| arg.name == argument.name) {
+            println!("Unknown argument: {}", argument.name);
+            has_unknown_arguments = true;
+        }
+    });
+
+    if has_unknown_arguments {
         return;
     }
 
-    let config = config::read_config();
+    if arguments.has_argument("help") {
+        println!("Usage: matchmaker [arguments]");
+        println!("Arguments:");
+        for argument in &ARGUMENTS {
+            println!("  --{}: {}", argument.syntax, argument.description);
+        }
+        return;
+    }
+
+    if arguments.has_argument("generate-default-config") {
+        config::generate_default_config("data/config.json");
+        return;
+    }
+
+    let config_path = arguments.get_value("config").unwrap_or("data/config.json".to_string());
+
+    let config = config::read_config(&config_path);
     let config = match config {
         Ok(config) => config,
         Err(error) => {
-            panic!("Error reading config: {}.\nUse --generate-default-config to generate default config", error);
+            println!("Error reading config: {}.\nUse --generate-default-config to generate default config", error);
+            return;
         }
     };
 
@@ -38,9 +89,13 @@ fn main() {
     });
 
     let listener = TcpListener::bind(format!("0.0.0.0:{}", config.matchmaker_port)).unwrap();
+    let interface = listener.local_addr().unwrap_or_else(|error| {
+        panic!("Problem getting local address: {:?}", error);
+    }).ip().to_string();
 
     println!(
-        "Matchmaker service started on port {}",
+        "Matchmaker service started on inteface {} port {}",
+        interface,
         config.matchmaker_port
     );
 
@@ -51,6 +106,7 @@ fn main() {
             stream,
             &config.working_directiries_path,
             &config.dedicated_server_dir,
+            &interface,
         );
     }
 }
@@ -112,15 +168,19 @@ fn process_one_line_request(
     http_request: Vec<String>,
     working_directories_path: &str,
     dedicated_server_dir: &str,
+    interface: &str,
 ) -> Option<String> {
     if http_request[0] == "connect" {
-        let port: Option<u16> = get_available_port();
+        let port: Option<u16> = get_available_port(interface);
         match port {
             Some(val) => {
                 let new_server_working_dir = generate_unique_directory(working_directories_path);
                 create_dedicated_server_environment(&new_server_working_dir, dedicated_server_dir);
                 match start_dedicated_server(val, &new_server_working_dir, dedicated_server_dir) {
-                    Ok(_) => return Some(val.to_string()),
+                    Ok(_) => {
+                        println!("Spawned new dedicated server on port {}", val);
+                        return Some(val.to_string())
+                    },
                     Err(error) => return Some(format!("Problem opening the file: {:?}", error)),
                 }
             }
@@ -136,6 +196,7 @@ fn handle_connection(
     mut stream: TcpStream,
     working_directories_path: &str,
     dedicated_server_dir: &str,
+    interface: &str,
 ) {
     let buf_reader = BufReader::new(&mut stream);
     let http_request: Vec<_> = buf_reader
@@ -146,7 +207,7 @@ fn handle_connection(
 
     if http_request.len() == 1 {
         let response =
-            process_one_line_request(http_request, working_directories_path, dedicated_server_dir);
+            process_one_line_request(http_request, working_directories_path, dedicated_server_dir, interface);
 
         match response {
             Some(val) => stream.write_all(val.as_bytes()).unwrap(),
@@ -157,12 +218,12 @@ fn handle_connection(
     }
 }
 
-fn get_available_port() -> Option<u16> {
-    (8000..9000).find(|port| is_port_available(*port))
+fn get_available_port(interface: &str) -> Option<u16> {
+    (8000..9000).find(|port| is_port_available(interface, *port))
 }
 
-fn is_port_available(port: u16) -> bool {
-    match TcpListener::bind(("127.0.0.1", port)) {
+fn is_port_available(interface: &str, port: u16) -> bool {
+    match TcpListener::bind((interface, port)) {
         Ok(_) => true,
         Err(_) => false,
     }

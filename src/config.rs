@@ -11,15 +11,7 @@ pub struct Config {
     pub matchmaker_port: u16,
 }
 
-pub fn read_config() -> Result<Config, String> {
-    let app_arguments = std::env::args().collect::<Vec<String>>();
-
-    let config_path = if app_arguments.len() == 2 {
-        app_arguments[1].clone()
-    } else {
-        "data/config.json".to_string()
-    };
-
+pub fn read_config(config_path: &str) -> Result<Config, String> {
     let data = std::fs::read_to_string(&config_path);
     let data = match data {
         Ok(data) => data,
@@ -47,7 +39,7 @@ pub fn read_config() -> Result<Config, String> {
     return Ok(config);
 }
 
-pub fn generate_default_config() {
+pub fn generate_default_config(config_path: &str) {
     let default_config = Config {
         working_directiries_path: "instances".to_string(),
         dedicated_server_dir: ".".to_string(),
@@ -57,7 +49,9 @@ pub fn generate_default_config() {
 
     let default_config_json = serde_json::to_string_pretty(&default_config).unwrap();
 
-    let config_path = "config.json";
+    let config_dir = std::path::Path::new(config_path).parent().unwrap();
+    std::fs::create_dir_all(config_dir).unwrap();
+
     let mut file = std::fs::File::create(config_path).unwrap();
     file.write_all(default_config_json.as_bytes()).unwrap();
 }
