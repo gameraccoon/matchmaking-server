@@ -1,10 +1,12 @@
 use crate::json_file_updater::{JsonFileUpdater, UpdateResult};
-use serde_json::{Value as JsonValue};
+use serde_json::Value as JsonValue;
 
 static VERSION_FIELD_NAME: &str = "config_format_version";
 pub static LATEST_CONFIG_VERSION: &str = "0.0.1";
 
-pub fn update_config_to_the_latest_version(mut config_json: JsonValue) -> Result<JsonValue, String> {
+pub fn update_config_to_the_latest_version(
+    mut config_json: JsonValue,
+) -> Result<JsonValue, String> {
     let version = config_json[VERSION_FIELD_NAME].as_str();
     if let Some(version) = version {
         if version == LATEST_CONFIG_VERSION {
@@ -19,7 +21,7 @@ pub fn update_config_to_the_latest_version(mut config_json: JsonValue) -> Result
     return match update_result {
         UpdateResult::Error(error) => Err(error),
         _ => Ok(config_json),
-    }
+    };
 }
 
 fn register_config_updaters() -> JsonFileUpdater {

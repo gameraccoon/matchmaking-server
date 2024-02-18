@@ -7,9 +7,9 @@ use std::{
     process::Command,
 };
 
+mod config;
 mod config_updaters;
 mod json_file_updater;
-mod config;
 
 use rand::{distributions::Alphanumeric, Rng};
 
@@ -31,17 +31,27 @@ fn main() {
 
     // create the directory for the working directories
     fs::create_dir_all(&config.working_directiries_path).unwrap_or_else(|error| {
-        println!("Problem creating directory '{}': {:?}", config.working_directiries_path, error);
+        println!(
+            "Problem creating directory '{}': {:?}",
+            config.working_directiries_path, error
+        );
     });
 
     let listener = TcpListener::bind(format!("127.0.0.1:{}", config.matchmaker_port)).unwrap();
 
-    println!("Matchmaker service started on port {}", config.matchmaker_port);
+    println!(
+        "Matchmaker service started on port {}",
+        config.matchmaker_port
+    );
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
 
-        handle_connection(stream, &config.working_directiries_path, &config.dedicated_server_dir);
+        handle_connection(
+            stream,
+            &config.working_directiries_path,
+            &config.dedicated_server_dir,
+        );
     }
 }
 
@@ -83,14 +93,26 @@ fn generate_unique_directory(working_dir: &str) -> String {
 
 fn create_dedicated_server_environment(
     dedicated_server_working_dir: &str,
-    dedicated_server_dir: &str) {
+    dedicated_server_dir: &str,
+) {
     fs::create_dir_all(dedicated_server_working_dir).unwrap_or_else(|error| {
-        println!("Problem creating directory '{}': {:?}", dedicated_server_working_dir, error);
+        println!(
+            "Problem creating directory '{}': {:?}",
+            dedicated_server_working_dir, error
+        );
     });
-    unix::fs::symlink(format!("{}/resources", dedicated_server_dir), Path::new(dedicated_server_working_dir).join("resources")).unwrap();
+    unix::fs::symlink(
+        format!("{}/resources", dedicated_server_dir),
+        Path::new(dedicated_server_working_dir).join("resources"),
+    )
+    .unwrap();
 }
 
-fn process_one_line_request(http_request: Vec<String>, working_directories_path: &str, dedicated_server_dir: &str) -> Option<String> {
+fn process_one_line_request(
+    http_request: Vec<String>,
+    working_directories_path: &str,
+    dedicated_server_dir: &str,
+) -> Option<String> {
     if http_request[0] == "connect" {
         let port: Option<u16> = get_available_port();
         match port {
@@ -110,7 +132,11 @@ fn process_one_line_request(http_request: Vec<String>, working_directories_path:
     }
 }
 
-fn handle_connection(mut stream: TcpStream, working_directories_path: &str, dedicated_server_dir: &str) {
+fn handle_connection(
+    mut stream: TcpStream,
+    working_directories_path: &str,
+    dedicated_server_dir: &str,
+) {
     let buf_reader = BufReader::new(&mut stream);
     let http_request: Vec<_> = buf_reader
         .lines()
@@ -119,7 +145,8 @@ fn handle_connection(mut stream: TcpStream, working_directories_path: &str, dedi
         .collect();
 
     if http_request.len() == 1 {
-        let response = process_one_line_request(http_request, working_directories_path, dedicated_server_dir);
+        let response =
+            process_one_line_request(http_request, working_directories_path, dedicated_server_dir);
 
         match response {
             Some(val) => stream.write_all(val.as_bytes()).unwrap(),
