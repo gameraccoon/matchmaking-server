@@ -88,7 +88,7 @@ fn main() {
         );
     });
 
-    let listener = TcpListener::bind(format!("0.0.0.0:{}", config.matchmaker_port)).unwrap();
+    let listener = TcpListener::bind(format!("{}:{}", config.network_interface, config.matchmaker_port)).unwrap();
     let interface = listener.local_addr().unwrap_or_else(|error| {
         panic!("Problem getting local address: {:?}", error);
     }).ip().to_string();

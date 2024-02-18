@@ -8,6 +8,7 @@ pub struct Config {
     pub config_format_version: String,
     pub working_directiries_path: String,
     pub dedicated_server_dir: String,
+    pub network_interface: String,
     pub matchmaker_port: u16,
 }
 
@@ -43,6 +44,7 @@ pub fn generate_default_config(config_path: &str) {
     let default_config = Config {
         working_directiries_path: "instances".to_string(),
         dedicated_server_dir: ".".to_string(),
+        network_interface: "0.0.0.0".to_string(),
         matchmaker_port: 14736,
         config_format_version: config_updaters::LATEST_CONFIG_VERSION.to_string(),
     };
