@@ -3,7 +3,7 @@
 Json config example:
 ```json
 {
-  "config_format_version": "0.0.1",
+  "config_format_version": "0.0.2",
   "working_directiries_path": "instances",
   "dedicated_server_dir": "/home/server/game/bin",
   "network_interface": "0.0.0.0",
