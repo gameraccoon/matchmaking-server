@@ -1,4 +1,3 @@
-
 pub struct Argument {
     pub name: String,
     pub value: Option<String>,
